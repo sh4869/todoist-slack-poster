@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -8,19 +9,28 @@ import (
 	"path"
 	"time"
 
-	"github.com/sachaos/todoist/lib"
-
 	"github.com/nlopes/slack"
+	"github.com/sachaos/todoist/lib"
 )
 
 func main() {
 	setting := getKeys()
 	api := slack.New(setting.SlackToken)
-	s, _ := todoist.SyncAll(setting.TodoistToken)
+	config := todoist.Config{AccessToken: setting.TodoistToken, DebugMode: false}
+	c := todoist.NewClient(&config)
+	c.Sync(context.Background())
+	s := c.Store
 	var text string
-	text = "本日のタスクです"
 	var attchments []slack.Attachment
-	for _, item := range getTodayTask(s.Items) {
+	var items todoist.Items
+	if len(getTodayTask(s.Items)) == 0 {
+		text = "<@sh4869> \n【今日のタスク】完了\n【明日のタスク】"
+		items = getTommorwTask(s.Items)
+	} else {
+		text = "<@sh4869> \n【今日のタスク】"
+		items = getTodayTask(s.Items)
+	}
+	for _, item := range items {
 		var color string
 		switch item.Priority {
 		case 1:
@@ -32,7 +42,7 @@ func main() {
 		}
 		var simekiri string
 		if item.DueDateTime().Unix() <= time.Now().Unix() {
-			simekiri = "*" + item.DueDateTime().Format("2006/01/02") + " *"
+			simekiri = item.DueDateTime().Format("2006/01/02") + " *(〆切り過ぎてる!!!)* "
 		} else {
 			simekiri = item.DueDateTime().Format("2006/01/02")
 		}
@@ -59,8 +69,18 @@ func main() {
 		Username:    "TodoistTaskToaster",
 		Markdown:    true,
 		Attachments: attchments,
-		IconURL:     setting.IconURL,
+		IconEmoji:   ":kirika:",
 	})
+}
+
+func getTommorwTask(items todoist.Items) todoist.Items {
+	var result todoist.Items
+	for _, item := range items {
+		if item.DueDateTime().Unix() > time.Date(2010, 1, 1, 1, 1, 1, 11, time.UTC).Unix() && item.DueDateTime().Unix() <= time.Now().AddDate(0, 0, 2).Unix() {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func getTodayTask(items todoist.Items) todoist.Items {
