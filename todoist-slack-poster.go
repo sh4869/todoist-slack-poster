@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/nlopes/slack"
@@ -20,16 +21,15 @@ func main() {
 	c := todoist.NewClient(&config)
 	c.Sync(context.Background())
 	s := c.Store
-	var text string
 	var attchments []slack.Attachment
 	var items todoist.Items
-	if len(getTodayTask(s.Items)) == 0 {
-		text = "<@sh4869> \n【今日のタスク】完了\n【明日のタスク】"
-		items = getTommorwTask(s.Items)
-	} else {
-		text = "<@sh4869> \n【今日のタスク】"
-		items = getTodayTask(s.Items)
-	}
+	deadtask := getDeadTask(s.Items)
+	todaytask := getTodayTask(s.Items)
+	tommorowtask := getTommorwTask(s.Items)
+	items = append(items, deadtask...)
+	items = append(items, todaytask...)
+	items = append(items, tommorowtask...)
+	text := "<@sh4869>\n【締め切りを過ぎたタスク】" + strconv.Itoa(len(deadtask)) + "件\n【今日のタスク】" + strconv.Itoa(len(todaytask)) + "件\n【明日のタスク】" + strconv.Itoa(len(tommorowtask)) + "件"
 	for _, item := range items {
 		var color string
 		switch item.Priority {
@@ -76,7 +76,7 @@ func main() {
 func getTommorwTask(items todoist.Items) todoist.Items {
 	var result todoist.Items
 	for _, item := range items {
-		if item.DueDateTime().Unix() > time.Date(2010, 1, 1, 1, 1, 1, 11, time.UTC).Unix() && item.DueDateTime().Unix() <= time.Now().AddDate(0, 0, 2).Unix() {
+		if item.DueDateTime().Format("2006-01-02") == time.Now().AddDate(0, 0, 1).Format("2006-01-02") {
 			result = append(result, item)
 		}
 	}
@@ -86,7 +86,18 @@ func getTommorwTask(items todoist.Items) todoist.Items {
 func getTodayTask(items todoist.Items) todoist.Items {
 	var result todoist.Items
 	for _, item := range items {
-		if item.DueDateTime().Unix() > time.Date(2010, 1, 1, 1, 1, 1, 11, time.UTC).Unix() && item.DueDateTime().Unix() <= time.Now().Unix() {
+		if item.DueDateTime().Format("2006-01-02") == time.Now().Format("2006-01-02") {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func getDeadTask(items todoist.Items) todoist.Items {
+	var result todoist.Items
+	today := time.Now()
+	for _, item := range items {
+		if item.DueDateTime().Unix() > time.Date(1990, 1, 1, 0, 0, 0, 0, time.Local).Unix() && item.DueDateTime().Unix() < time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.Local).Unix() {
 			result = append(result, item)
 		}
 	}
