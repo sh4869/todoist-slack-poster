@@ -33,11 +33,11 @@ func main() {
 	for _, item := range items {
 		var color string
 		switch item.Priority {
-		case 1:
+		case 4:
 			color = "#ff0000"
-		case 2:
-			color = "#ff8100"
 		case 3:
+			color = "#ff8100"
+		case 2:
 			color = "#ffc800"
 		}
 		var simekiri string
